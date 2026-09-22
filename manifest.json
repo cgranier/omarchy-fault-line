@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "cgranier.faultline",
+  "name": "Fault Line",
+  "version": "0.1.0",
+  "author": "Carlos Granier",
+  "license": "MIT",
+  "description": "What broke since boot: failed units and the journal's error lines, folded so a repeating message is one row, with a one-key handoff to your coding agent.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Panel.qml" },
+  "barWidget": {
+    "displayName": "Fault Line",
+    "description": "Failed systemd units and journal errors since boot, grouped by unit; the icon appears when there is something new.",
+    "category": "System",
+    "aliases": ["faultline", "journal", "errors", "failed"],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": { "maxPriority": 3, "refreshIntervalSec": 60, "alwaysShow": false },
+    "schema": [
+      { "key": "maxPriority", "type": "integer", "label": "Show lines up to priority", "min": 0, "max": 4, "step": 1, "defaultValue": 3, "description": "journalctl -p: 3 is error and worse, 4 adds warnings." },
+      { "key": "refreshIntervalSec", "type": "integer", "label": "Refresh every (s)", "min": 15, "max": 3600, "step": 15, "defaultValue": 60 },
+      { "key": "alwaysShow", "type": "boolean", "label": "Keep the icon in the bar", "defaultValue": false }
+    ]
+  }
+}
