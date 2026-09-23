@@ -23,7 +23,7 @@ closing the panel marks everything seen.
 | Bar | right click | mark seen without opening |
 | Bar | middle click | refresh |
 | Panel | `j` / `k` / arrows | move |
-| Panel | `enter` / click | diagnose with your default coding agent: it gets the unit, the message, and the exact `journalctl` command |
+| Panel | `enter` / click | diagnose with your default coding agent: it gets the unit, the shape of the problem and the exact `journalctl` command, never the log text itself |
 | Panel | `i` | open that item's own log in a terminal |
 | Panel | `m` | mute this problem (or unmute); it moves to a footer and stops counting |
 | Panel | `t` | this boot → 24 hours → 7 days |
@@ -54,6 +54,10 @@ rm -rf ~/.local/state/omarchy-faultline   # optional: seen marker, mutes, window
 ```
 
 Fault Line only reads the journal and `systemctl` output. It never restarts, resets or changes a unit.
+
+The journal is written by every process on the machine, so it is treated as untrusted: reads are capped in bytes and
+records, messages are cut at 500 characters, only plainly-shaped unit names ever reach a command line, and the agent
+handoff carries no log text, just the command to read it, with the log declared as data.
 
 ## Settings
 

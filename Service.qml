@@ -42,7 +42,10 @@ Item {
 
   function refresh() {
     if (!journalProcess.running) {
-      journalProcess.command = ["timeout", "15", "journalctl", "-q", "-o", "json", "-p", String(maxPriority),
+      // Bounded twice: journalctl hands over at most the newest lines it is
+      // asked for, and head caps the bytes before anything is buffered here.
+      journalProcess.command = ["timeout", "15", "sh", "-c", 'journalctl "$@" | head -c 8000000', "sh",
+        "-q", "-o", "json", "-p", String(maxPriority), "-n", String(Model.MAX_RECORDS),
         "--output-fields=MESSAGE,PRIORITY,_TRANSPORT,_SYSTEMD_UNIT,_SYSTEMD_USER_UNIT,SYSLOG_IDENTIFIER,_COMM"]
         .concat(Model.windowById(window).args)
       journalProcess.running = true
@@ -108,15 +111,19 @@ Item {
   }
 
   // ---- actions --------------------------------------------------------------
+  // The agent gets the unit and the command, never the log's own text.
   function diagnose(item) {
     if (!item || !agentAvailable) return
-    Quickshell.execDetached(["omarchy-agent-prompt", Model.diagnosisPrompt(item, Date.now(), window)])
+    var prompt = Model.diagnosisPrompt(item, Date.now(), window)
+    if (prompt === null) { say("That unit name is not one to hand to a command"); return }
+    Quickshell.execDetached(["omarchy-agent-prompt", prompt])
   }
 
   function showLog(item) {
-    if (!item) return
+    var cmd = Model.logCommand(item, window)
+    if (!cmd) { if (item) say("That unit name is not one to hand to a command"); return }
     Quickshell.execDetached(["omarchy-launch-tui", "--app-id=org.omarchy.faultline", "bash", "-c",
-      '"$@" 2>&1 | less -R', "bash"].concat(Model.logCommand(item, window)))
+      '"$@" 2>&1 | less -R', "bash"].concat(cmd))
   }
 
   function copyReport(item) {
@@ -178,7 +185,7 @@ Item {
   Process {
     id: failedSystemProcess
     running: false
-    command: ["timeout", "10", "systemctl", "list-units", "--failed", "--output=json", "--no-pager"]
+    command: ["timeout", "10", "sh", "-c", 'systemctl "$@" | head -c 1000000', "sh", "list-units", "--failed", "--output=json", "--no-pager"]
     stdout: StdioCollector { id: failedSystemOut; waitForEnd: true }
     onExited: function(exitCode) { root.failedSystem = Model.parseFailed(failedSystemOut.text, "system"); root.recount() }
   }
@@ -186,7 +193,7 @@ Item {
   Process {
     id: failedUserProcess
     running: false
-    command: ["timeout", "10", "systemctl", "--user", "list-units", "--failed", "--output=json", "--no-pager"]
+    command: ["timeout", "10", "sh", "-c", 'systemctl "$@" | head -c 1000000', "sh", "--user", "list-units", "--failed", "--output=json", "--no-pager"]
     stdout: StdioCollector { id: failedUserOut; waitForEnd: true }
     onExited: function(exitCode) { root.failedUser = Model.parseFailed(failedUserOut.text, "user"); root.recount() }
   }
