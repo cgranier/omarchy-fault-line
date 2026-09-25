@@ -71,8 +71,22 @@ Item {
     summary = Model.summaryText(counts, window, mutedItems.length)
   }
 
+  // The state file is never opened by the shell: bin/faultline-state checks
+  // the directory chain, refuses links, FIFOs and oversized files, and writes
+  // atomically. Writes are serialised; one made while another runs waits.
+  readonly property string stateScript: String(Qt.resolvedUrl("bin/faultline-state")).replace(/^file:\/\//, "")
+  property string pendingWrite: ""
+
   function saveState() {
-    stateFile.setText(Model.serializeState({ seenMs: seenMs, muted: muted, window: window, seenFailed: seenFailed }))
+    pendingWrite = Model.serializeState({ seenMs: seenMs, muted: muted, window: window, seenFailed: seenFailed })
+    if (!writeProcess.running) flushWrite()
+  }
+
+  function flushWrite() {
+    if (pendingWrite === "") return
+    writeProcess.command = ["timeout", "10", "/usr/bin/python3", stateScript, "write", stateDir + "/state.json", pendingWrite]
+    pendingWrite = ""
+    writeProcess.running = true
   }
 
   // A failed unit has no timestamp of its own here; it is new until the panel
@@ -149,25 +163,30 @@ Item {
   }
 
   Process {
+    id: readProcess
     running: true
-    command: ["mkdir", "-p", root.stateDir]
-  }
-
-  FileView {
-    id: stateFile
-    path: root.stateDir + "/state.json"
-    watchChanges: false
-    atomicWrites: true
-    printErrors: false
-    onLoaded: {
-      var state = Model.parseState(text())
+    command: ["timeout", "10", "/usr/bin/python3", root.stateScript, "read", root.stateDir + "/state.json"]
+    stdout: StdioCollector { id: readOut; waitForEnd: true }
+    onExited: function(exitCode) {
+      // A refused or missing file means a fresh start; nothing is written
+      // over it until the person does something that changes state.
+      var state = Model.parseState(exitCode === 0 ? readOut.text : "{}")
       root.seenMs = state.seenMs
       root.muted = state.muted
       root.window = state.window
       root.seenFailed = state.seenFailed
       root.refresh()
     }
-    onLoadFailed: root.refresh()
+  }
+
+  Process {
+    id: writeProcess
+    running: false
+    command: []
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.say("Could not save Fault Line's state")
+      root.flushWrite()
+    }
   }
 
   Process {

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "cgranier.faultline",
   "name": "Fault Line",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Carlos Granier",
   "license": "MIT",
   "description": "What broke since boot: failed units and the journal's error lines, folded so a repeating message is one row, with a one-key handoff to your coding agent.",

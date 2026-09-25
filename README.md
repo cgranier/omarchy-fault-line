@@ -53,6 +53,10 @@ omarchy plugin remove cgranier.faultline
 rm -rf ~/.local/state/omarchy-faultline   # optional: seen marker, mutes, window
 ```
 
+The shell never opens that state file itself: `bin/faultline-state` does, after checking that every directory from your
+home down is yours and not writable by others, that the file is a regular file you own and under 64 KB (a symlink or FIFO
+planted there is refused, not followed or waited on), and writes go to a temp file renamed into place.
+
 Fault Line only reads the journal and `systemctl` output. It never restarts, resets or changes a unit.
 
 The journal is written by every process on the machine, so it is treated as untrusted: reads are capped in bytes and
@@ -86,7 +90,8 @@ manifest.json   plugin declaration + settings schema
 Panel.qml       bar button + popup (entry point)
 Service.qml     journal + systemctl reads, state file, actions
 Model.js        pure logic: parsing, folding, rows, prompts
-tests/          node tests
+bin/faultline-state   the only thing that opens state.json (checked, bounded, atomic)
+tests/          node tests; state.test.sh drives the helper
 ```
 
 ```bash
