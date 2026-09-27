@@ -66,7 +66,10 @@ Fault Line only reads the journal and `systemctl` output. It never restarts, res
 
 The journal is written by every process on the machine, so it is treated as untrusted: reads are capped in bytes and
 records, messages are cut at 500 characters, only plainly-shaped unit names ever reach a command line, and the agent
-handoff carries no log text, just the command to read it, with the log declared as data.
+handoff carries no log text, just the command to read it, with the log declared as data. The agent then reads that
+log itself, and services log text from anyone they talk to (an SSH server logs the user names of failed logins), so
+it starts in its ordinary mode and asks before acting. The `autoApprove` setting restores the approval-bypass flags
+`omarchy agent` uses, if you want that.
 
 ## Settings
 
@@ -77,6 +80,7 @@ handoff carries no log text, just the command to read it, with the log declared 
 | `maxPriority` | `3` | `journalctl -p`: 3 is error and worse; 4 adds warnings (expect many more rows). |
 | `refreshIntervalSec` | `60` | Poll interval. |
 | `alwaysShow` | `false` | Keep the icon in the bar even with nothing new. |
+| `autoApprove` | `false` | Start agents with approvals off, the way `omarchy agent` does. Off, the agent asks before acting; the journal it reads is untrusted input, so that is the safer default. |
 
 ## IPC
 
@@ -96,7 +100,8 @@ Panel.qml       bar button + popup (entry point)
 Service.qml     journal + systemctl reads, state file, actions
 Model.js        pure logic: parsing, folding, rows, prompts
 bin/faultline-state   the only thing that opens state.json (checked, bounded, atomic)
-tests/          node tests; state.test.sh drives the helper
+bin/faultline-agent   starts the default agent with the brief from stdin, asking before it acts unless autoApprove
+tests/          node tests; state.test.sh and agent.test.sh drive the two scripts
 ```
 
 ```bash

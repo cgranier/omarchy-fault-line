@@ -75,6 +75,7 @@ Item {
   // the directory chain, refuses links, FIFOs and oversized files, and writes
   // atomically. Writes are serialised; one made while another runs waits.
   readonly property string stateScript: String(Qt.resolvedUrl("bin/faultline-state")).replace(/^file:\/\//, "")
+  readonly property string agentScript: String(Qt.resolvedUrl("bin/faultline-agent")).replace(/^file:\/\//, "")
   property string pendingWrite: ""
 
   function saveState() {
@@ -127,12 +128,21 @@ Item {
   }
 
   // ---- actions --------------------------------------------------------------
-  // The agent gets the unit and the command, never the log's own text.
+  // The agent gets the unit and the command, never the log's own text, and
+  // starts in its ordinary mode: it asks before acting on what the journal
+  // says, unless autoApprove is on. The brief goes over stdin.
   function diagnose(item) {
     if (!item || !agentAvailable) return
     var prompt = Model.diagnosisPrompt(item, Date.now(), window)
     if (prompt === null) { say("That unit name is not one to hand to a command"); return }
-    Quickshell.execDetached(["omarchy-agent-prompt", prompt])
+    if (launchProcess.running) return
+    // Only the launcher's complaint comes back, capped; silence means started.
+    var command = ["timeout", "10", "sh", "-c", 'bash "$@" 2>&1 >/dev/null | head -c 1000', "sh", agentScript]
+    if (setting("autoApprove", false) === true) command.push("--auto-approve")
+    launchProcess.payload = prompt
+    launchProcess.command = command
+    launchProcess.stdinEnabled = true
+    launchProcess.running = true
   }
 
   function showLog(item) {
@@ -200,6 +210,21 @@ Item {
     onExited: function(exitCode) {
       if (exitCode !== 0) root.say("Could not save Fault Line's state")
       root.flushWrite()
+    }
+  }
+
+  // Starts the agent's terminal in its own session and exits at once.
+  Process {
+    id: launchProcess
+    property string payload: ""
+    running: false
+    command: []
+    stdinEnabled: true
+    onStarted: { write(payload); payload = ""; stdinEnabled = false }
+    stdout: StdioCollector { id: launchOut; waitForEnd: true }
+    onExited: function(exitCode) {
+      var complaint = String(launchOut.text || "").trim().split("\n")[0].substring(0, 120)
+      if (complaint !== "" || exitCode !== 0) root.say(complaint || "Could not start the agent")
     }
   }
 

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "cgranier.faultline",
   "name": "Fault Line",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": "Carlos Granier",
   "license": "MIT",
   "description": "What broke since boot: failed units and the journal's error lines, folded so a repeating message is one row, with a one-key handoff to your coding agent.",
@@ -15,11 +15,12 @@
     "aliases": ["faultline", "journal", "errors", "failed"],
     "allowMultiple": false,
     "defaultSection": "right",
-    "defaults": { "maxPriority": 3, "refreshIntervalSec": 60, "alwaysShow": false },
+    "defaults": { "maxPriority": 3, "refreshIntervalSec": 60, "alwaysShow": false, "autoApprove": false },
     "schema": [
       { "key": "maxPriority", "type": "integer", "label": "Show lines up to priority", "min": 0, "max": 4, "step": 1, "defaultValue": 3, "description": "journalctl -p: 3 is error and worse, 4 adds warnings." },
       { "key": "refreshIntervalSec", "type": "integer", "label": "Refresh every (s)", "min": 15, "max": 3600, "step": 15, "defaultValue": 60 },
-      { "key": "alwaysShow", "type": "boolean", "label": "Keep the icon in the bar", "defaultValue": false }
+      { "key": "alwaysShow", "type": "boolean", "label": "Keep the icon in the bar", "defaultValue": false },
+      { "key": "autoApprove", "type": "boolean", "label": "Start agents with approvals off", "defaultValue": false, "description": "Off: the agent asks before acting on what it reads in the journal, which is untrusted input. On: it starts the way omarchy agent starts it, with approvals switched off." }
     ]
   }
 }

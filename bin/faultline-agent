@@ -1,0 +1,78 @@
+#!/bin/bash
+# Hand Fault Line's brief to the default coding agent.
+#
+# Usage: faultline-agent [--auto-approve]      (the brief arrives on stdin)
+#
+# The brief names a unit and the journalctl command to read it; the agent
+# then reads the journal, which any service can write into (and some log what
+# remote clients send). So by default the agent starts in its ordinary mode
+# and asks before it acts. --auto-approve (the plugin's autoApprove setting,
+# off by default) restores the approval-bypass flags `omarchy agent` uses.
+# The per-agent flags are copied from omarchy-agent (Omarchy 4.0.4).
+#
+# The brief comes over stdin rather than as an argument; the agent CLIs
+# themselves take a prompt only as an argument, as they do from omarchy-agent.
+# The terminal is started in its own session (setsid -f), so it outlives the
+# shell process that asked for it.
+set -euo pipefail
+
+usage="usage: faultline-agent [--auto-approve]  (brief on stdin)"
+auto=0
+case $# in
+  0) ;;
+  1) [[ $1 == --auto-approve ]] || { echo "$usage" >&2; exit 1; }; auto=1 ;;
+  *) echo "$usage" >&2; exit 1 ;;
+esac
+
+prompt=$(head -c 16384)
+[[ -n ${prompt//[[:space:]]/} ]] || { echo "faultline-agent: empty brief" >&2; exit 1; }
+
+agent=$(omarchy-default-agent 2>/dev/null || true)
+[[ $agent =~ ^[a-z][a-z0-9-]*$ ]] || { echo "No default agent is set (omarchy default agent <name>)" >&2; exit 1; }
+if ! command -v "$agent" >/dev/null 2>&1 && [[ $agent != openclaw ]]; then
+  echo "$agent is not installed" >&2
+  exit 1
+fi
+
+[[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
+
+# Two tables: how each agent takes a prompt, and what switches its approvals off.
+if (( auto )); then
+  case "$agent" in
+    opencode)      command=(opencode --auto --prompt "$prompt") ;;
+    gemini)        command=(gemini --yolo --prompt-interactive "$prompt") ;;
+    copilot)       command=(copilot --allow-all --interactive "$prompt") ;;
+    crush)         command=(crush run "$prompt") ;;
+    claude)        command=(claude --permission-mode auto -- "$prompt") ;;
+    grok)          command=(grok --permission-mode bypassPermissions -- "$prompt") ;;
+    openclaw)      command=(omarchy-launch-openclaw --tui --message "$prompt") ;;
+    codex)         command=(codex --approve-for-me -- "$prompt") ;;
+    cursor-agent)  command=(cursor-agent --yolo --trust agent -- "$prompt") ;;
+    hermes)        command=(env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=$prompt") ;;
+    muse)          command=(muse --approval-mode never -- "$prompt") ;;
+    omp)           command=(omp --auto-approve -- "$prompt") ;;
+    pi)            command=(pi "$prompt") ;;
+    *) echo "Unsupported agent: $agent" >&2; exit 1 ;;
+  esac
+else
+  case "$agent" in
+    opencode)      command=(opencode --prompt "$prompt") ;;
+    gemini)        command=(gemini --prompt-interactive "$prompt") ;;
+    copilot)       command=(copilot --interactive "$prompt") ;;
+    crush)         command=(crush run "$prompt") ;;   # crush takes a prompt only this way; it asks before tools
+    claude)        command=(claude -- "$prompt") ;;
+    grok)          command=(grok -- "$prompt") ;;
+    openclaw)      command=(omarchy-launch-openclaw --tui --message "$prompt") ;;
+    codex)         command=(codex -- "$prompt") ;;
+    cursor-agent)  command=(cursor-agent agent -- "$prompt") ;;
+    hermes)        command=(env -u HERMES_SESSION_SOURCE hermes chat --tui "--query=$prompt") ;;
+    muse)          command=(muse -- "$prompt") ;;
+    omp)           command=(omp -- "$prompt") ;;
+    pi)            command=(pi "$prompt") ;;
+    *) echo "Unsupported agent: $agent" >&2; exit 1 ;;
+  esac
+fi
+
+# Its own session and no inherited pipes: the caller returns at once and the
+# terminal outlives it.
+exec setsid -f omarchy-launch-tui --app-id=org.omarchy.agent "${command[@]}" </dev/null >/dev/null 2>&1
