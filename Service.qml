@@ -84,8 +84,10 @@ Item {
 
   function flushWrite() {
     if (pendingWrite === "") return
-    writeProcess.command = ["timeout", "10", "/usr/bin/python3", stateScript, "write", stateDir + "/state.json", pendingWrite]
+    writeProcess.payload = pendingWrite
     pendingWrite = ""
+    writeProcess.command = ["timeout", "10", "/usr/bin/python3", stateScript, "write", stateDir + "/state.json"]
+    writeProcess.stdinEnabled = true
     writeProcess.running = true
   }
 
@@ -140,10 +142,18 @@ Item {
       '"$@" 2>&1 | less -R', "bash"].concat(cmd))
   }
 
+  function copyText(text) {
+    if (copyProcess.running) return false
+    copyProcess.payload = String(text)
+    copyProcess.stdinEnabled = true
+    copyProcess.running = true
+    return true
+  }
+
   function copyReport(item) {
     if (!item) return
-    Quickshell.execDetached(["wl-copy", Model.reportText(item, Date.now(), window)])
-    say("Copied " + item.unit)
+    if (copyText(Model.reportText(item, Date.now(), window)))
+      say("Copied " + item.unit)
   }
 
   onSettingsChanged: refresh()
@@ -181,12 +191,27 @@ Item {
 
   Process {
     id: writeProcess
+    // The state goes over stdin, never as an argument (see copyProcess).
+    property string payload: ""
     running: false
     command: []
+    stdinEnabled: true
+    onStarted: { write(payload); payload = ""; stdinEnabled = false }
     onExited: function(exitCode) {
       if (exitCode !== 0) root.say("Could not save Fault Line's state")
       root.flushWrite()
     }
+  }
+
+  // Clipboard text goes to wl-copy over stdin, never as an argument: other
+  // local users can read a running process's arguments in /proc.
+  Process {
+    id: copyProcess
+    property string payload: ""
+    running: false
+    command: ["timeout", "10", "wl-copy"]
+    stdinEnabled: true
+    onStarted: { write(payload); payload = ""; stdinEnabled = false }
   }
 
   Process {

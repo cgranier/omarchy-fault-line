@@ -53,9 +53,14 @@ omarchy plugin remove cgranier.faultline
 rm -rf ~/.local/state/omarchy-faultline   # optional: seen marker, mutes, window
 ```
 
-The shell never opens that state file itself: `bin/faultline-state` does, after checking that every directory from your
-home down is yours and not writable by others, that the file is a regular file you own and under 64 KB (a symlink or FIFO
-planted there is refused, not followed or waited on), and writes go to a temp file renamed into place.
+The shell never opens that state file itself: `bin/faultline-state` does. It opens your home and each directory below it
+one at a time, relative to the one above and without following links, and checks each one is yours and not writable by
+others; the file is then opened and replaced relative to the directory it holds open, so nothing is looked up by path
+again after it was checked. The file must be a regular file you own and under 64 KB (a symlink or FIFO planted there is
+refused, not followed or waited on), and a write goes to a new private temp file renamed into place.
+
+The state goes to `faultline-state` and a copied report to `wl-copy` over stdin, not in their arguments, which any local
+user can read in `/proc`.
 
 Fault Line only reads the journal and `systemctl` output. It never restarts, resets or changes a unit.
 
